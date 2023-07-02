@@ -13,14 +13,22 @@ selectEl.addEventListener('change', onChange);
 
 function onChange(event) {
   const breeds = event.target.value;
+
   loaderEl.hidden = false;
   selectEl.hidden = true;
   containerEl.hidden = true;
 
   fetchCatByBreed(breeds)
     .then(data => {
+      if (!data.length) {
+        Notiflix.Notify.failure(
+          'Something went wrong! Try reloading the page!'
+        );
+      }
+
       containerEl.innerHTML = createMarkup(data);
     })
+
     .catch(error => {
       Notiflix.Notify.failure('Something went wrong! Try reloading the page!');
     });
@@ -35,11 +43,7 @@ function selectBreeds() {
   fetchBreeds()
     .then(data => {
       selectEl.innerHTML = data
-        .map(
-          el => `
-<option value="${el.id}">${el.name}</option>
-`
-        )
+        .map(el => `<option value="${el.id}">${el.name}</option>`)
         .join('');
       new SlimSelect({
         select: '#selectCat',
@@ -56,15 +60,16 @@ function selectBreeds() {
   loaderEl.hidden = true;
   selectEl.hidden = false;
 }
+
 selectBreeds();
 
 function createMarkup(array) {
   return array
     .map(({ url, breeds: [{ description, name, temperament }] }) => {
-      return `<img class="image" src="${url}" alt="${name}" width="400"/>
-    <h2 class="title">${name}</h2>
-    <p class="descr">${description}</p>
-    <h3 class="sub-title">Temperament</h3>
+      return `<img class="image" src="${url}" alt="${name}" width="400"/> 
+    <h2 class="title">${name}</h2> 
+    <p class="descr">${description}</p> 
+    <h3 class="sub-title">Temperament</h3> 
     <p class="temperament">${temperament}</p>`;
     })
     .join('');
