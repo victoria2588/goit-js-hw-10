@@ -1,76 +1,115 @@
-import { fetchBreeds } from './cat-api';
-import { fetchCatByBreed } from './cat-api';
+import { fetchBreeds, fetchCatByBreed } from './cat-api.js';
 import Notiflix from 'notiflix';
+import 'notiflix/src/notiflix.css';
 import SlimSelect from 'slim-select';
 import 'slim-select/dist/slimselect.css';
 
-const selectEl = document.querySelector('.breed-select');
-const loaderEl = document.querySelector('.loader');
-const errorEl = document.querySelector('.error');
-const containerEl = document.querySelector('.cat-info');
+Notiflix.Notify.init({
+  position: 'center-top',
+  distance: '40px',
+  timeout: 3600000,
+});
 
-selectEl.addEventListener('change', onChange);
+let eventError = false;
 
-function onChange(event) {
-  const breeds = event.target.value;
+const refs = {
+  select: document.querySelector('.breed-select'),
+  divData: document.querySelector('.cat-info'),
+};
 
-  loaderEl.hidden = false;
-  selectEl.hidden = true;
-  containerEl.hidden = true;
+startLoading(refs.select);
+fetchBreeds()
+  .then(data => {
+    if (!data.length) throw new Error('Data not found');
+    return data.reduce(
+      (markup, currentEl) => markup + createSelectElement(currentEl),
+      ''
+    );
+  })
+  .then(updateSelect)
+  .catch(onError)
+  .finally(endLoading);
 
-  fetchCatByBreed(breeds)
-    .then(data => {
-      if (!data.length) {
-        Notiflix.Notify.failure(
-          'Something went wrong! Try reloading the page!'
-        );
-      }
+refs.select.addEventListener('change', onSelect);
 
-      containerEl.innerHTML = createMarkup(data);
-    })
-
-    .catch(error => {
-      Notiflix.Notify.failure('Something went wrong! Try reloading the page!');
-    });
-
-  loaderEl.hidden = true;
-  selectEl.hidden = false;
-  containerEl.hidden = false;
+function createSelectElement({ id, name }) {
+  return `<option data-placeholder="true"></option>;
+  <option value="${id}">${name || 'Unknown'}</option>`;
 }
 
-function selectBreeds() {
-  selectEl.hidden = true;
-  fetchBreeds()
-    .then(data => {
-      selectEl.innerHTML = data
-        .map(el => `<option value="${el.id}">${el.name}</option>`)
-        .join('');
-      new SlimSelect({
-        select: '#selectCat',
-        settings: {
-          placeholderText: 'Select Cat',
-        },
-      });
-    })
-    .catch(error => {
-      Notiflix.Notify.failure('Something went wrong! Try reloading the page!');
-    });
-
-  errorEl.hidden = true;
-  loaderEl.hidden = true;
-  selectEl.hidden = false;
+function updateSelect(markup) {
+  refs.select.innerHTML = markup;
+  new SlimSelect({
+    select: refs.select,
+    settings: {
+      placeholderText: 'Select a breed',
+    },
+  });
+  refs.select.classList.remove('invisible');
 }
 
-selectBreeds();
-
-function createMarkup(array) {
-  return array
-    .map(({ url, breeds: [{ description, name, temperament }] }) => {
-      return `<img class="image" src="${url}" alt="${name}" width="400"/> 
-    <h2 class="title">${name}</h2> 
-    <p class="descr">${description}</p> 
-    <h3 class="sub-title">Temperament</h3> 
-    <p class="temperament">${temperament}</p>`;
+function onSelect(e) {
+  startLoading(refs.divData);
+  fetchCatByBreed(e.target.value)
+    .then(data => {
+      if (!data.length) throw new Error('Data not found');
+      return data.reduce(
+        (markup, currentEl) => markup + createInfoElement(getArgs(currentEl)),
+        ''
+      );
     })
-    .join('');
+    .then(updateInfo)
+    .catch(onError)
+    .finally(endLoading);
+}
+
+function createInfoElement({ url, name, description, temperament }) {
+  return ` <img
+      class="cat_image"
+      src="${url}"
+      alt="${name || 'Unknown'}"
+    />
+    <h2 class="title">${name || 'Unknown'}</h2>
+    <p class="descr">${description || 'Unknown'}</p>
+    <h3 class="sub-title">Temperament</h3>
+    <p class="descr">${temperament || 'Unknown'}</p>
+    `;
+}
+
+function updateInfo(markup) {
+  refs.divData.innerHTML = markup;
+  refs.divData.classList.remove('invisible');
+}
+
+function getArgs({ url, breeds }) {
+  const { name, description, temperament } = breeds[0];
+  return {
+    url,
+    name,
+    description,
+    temperament,
+  };
+}
+
+function startLoading(element) {
+  if (eventError) afterError();
+  element.classList.add('invisible');
+  Notiflix.Loading.hourglass('Loading data, please wait...', {
+    backgroundColor: 'rgba(0,0,0,0.6)',
+  });
+}
+
+function endLoading() {
+  Notiflix.Loading.remove();
+}
+
+function onError(error) {
+  eventError = true;
+  Notiflix.Notify.failure(error.message);
+}
+
+function afterError() {
+  const notify = document.querySelector('.notiflix-notify-failure');
+  if (notify) notify.remove();
+  eventError = false;
 }
